@@ -171,9 +171,11 @@ void analogWriteCallback(byte pin, int value) {
 
         }
         else {
-            pin -= 2; // drop the pin count to get zero indexed servos
-            servos[pin].write(value);
-            Firmata.setPinState(servoPinMap[pin+2], value);
+            // Write the angle to the servo
+            // NOTE: the `servos` array only holds physical servo objects, hence
+            // we need to drop the pin-count to get it back to zero based
+            servos[pin-2].write(value);
+            Firmata.setPinState(servoPinMap[pin], value);
         }
     }
 }
@@ -220,9 +222,7 @@ void reportDigitalCallback(byte port, int value) {
 void systemResetCallback() {
     isResetting = true;
 
-    // Reset all digital pins to be output only
-    // Detach all servo pins
-    // Shutdown motor controllers
+    // TODO: Shutdown motor controllers
 
     reportPins = 0;
     previousDigitalPins = 0;
@@ -330,6 +330,22 @@ void setup() {
     // Controller Firmware Version
     Firmata.setFirmwareNameAndVersion("bbfrc-astar-32u4-rc", FIRMWARE_VER_MAJOR, FIRMWARE_VER_MINOR);
 
+    // Attach servos
+    // We start indexing at 2 because BRD_NUM_SERVO_PINS refers to the
+    // TOTAL number of servo pins available (including virtual pins)
+    for (byte i = 2; i < BRD_NUM_SERVO_PINS; i++) {
+        // NOTE: The servo channels 0 and 1 are reserved for the motors
+        // Thus, the map of logical servo pins to physical pins is
+        // offset by 2
+        Firmata.setPinMode(servoPinMap[i], PIN_MODE_SERVO);
+
+        // the `servos` array only holds the number of physical servos
+        // hence the need to adjust the index
+        // .attach() essentially tells the Servo library that the pin
+        // specified should be used as a servo output
+        servos[i-2].attach(servoPinMap[i]);
+    }
+
     // Attach message callbacks
     Firmata.attach(ANALOG_MESSAGE, analogWriteCallback);
     Firmata.attach(DIGITAL_MESSAGE, digitalWriteCallback);
@@ -367,10 +383,9 @@ void loop() {
         for (pin = 0; pin < BRD_TOTAL_PINS; pin++) {
             if (BRD_IS_ANALOG_PIN(pin) && Firmata.getPinMode(pin) == PIN_MODE_ANALOG) {
                 analogPin = BRD_PIN_TO_ANALOG(pin);
-                // TODO ZQ: This is not working as expected. Check the analog registration callback
-                //if (analogInputsToReport & (1 << analogPin)) {
+                if (analogInputsToReport & (1 << analogPin)) {
                     Firmata.sendAnalog(analogPin, analogRead(analogPin));
-                //}
+                }
             }
         }
     }
