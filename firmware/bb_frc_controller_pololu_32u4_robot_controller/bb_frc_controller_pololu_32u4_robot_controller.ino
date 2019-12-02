@@ -171,11 +171,11 @@ void analogWriteCallback(byte pin, int value) {
 
         }
         else {
-            pin -= 2; // drop the pin count to get zero indexed servos
-
             // Write the angle to the servo
-            servos[pin].write(value);
-            Firmata.setPinState(servoPinMap[pin+2], value);
+            // NOTE: the `servos` array only holds physical servo objects, hence
+            // we need to drop the pin-count to get it back to zero based
+            servos[pin-2].write(value);
+            Firmata.setPinState(servoPinMap[pin], value);
         }
     }
 }
