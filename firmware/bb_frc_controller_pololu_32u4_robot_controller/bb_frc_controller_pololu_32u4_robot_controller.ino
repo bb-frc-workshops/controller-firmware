@@ -1,5 +1,6 @@
 #include <ServoT3.h>
 #include <Firmata.h>
+#include <AStar32U4.h>
 
 // Version Information
 #define FIRMWARE_VER_MAJOR  1
@@ -16,27 +17,29 @@ Arduino Pin | Virtual Pin | Type
  6          | 2           | Digital
  7          | 3           | Digital
  8          | 4           | Digital
- 14         | S0 (5)      | Servo
- 15         | S1 (6)      | Servo
- 16         | S2 (7)      | Servo
- 17         | S3 (8)      | Servo
- 18         | A0 (9)      | Analog
- 19         | A1 (10)     | Analog
- 20         | A2 (11)     | Analog
- 21         | A3 (12)     | Analog
- 22         | A4 (13)     | Analog
- 23         | A5 (14)     | Analog
+ *          | S0 (5)      | Servo (M1)
+ *          | S1 (6)      | Servo (M2)
+ 14         | S2 (7)      | Servo
+ 15         | S3 (8)      | Servo
+ 16         | S4 (9)      | Servo
+ 17         | S5 (10)     | Servo
+ 18         | A0 (11)     | Analog
+ 19         | A1 (12)     | Analog
+ 20         | A2 (13)     | Analog
+ 21         | A3 (14)     | Analog
+ 22         | A4 (15)     | Analog
+ 23         | A5 (16)     | Analog
 
  Analog pins 0 - 5 (A0 - A5)
 */
 #define BRD_MAX_SERVOS  4
-#define BRD_TOTAL_PINS  15
+#define BRD_TOTAL_PINS  17
 #define BRD_TOTAL_PORTS 3
 
 #define BRD_IS_DIGITAL_PIN(p)   ((p) >= 0 && (p) < 5) // 5 DIO pins only
-#define BRD_IS_ANALOG_PIN(p)    ((p) >= 9 && (p) < TOTAL_PINS)
-#define BRD_IS_SERVO_PIN(p)     ((p) >= 5 && (p) <= 8)
-#define BRD_PIN_TO_ANALOG(p)    (p) - 9
+#define BRD_IS_ANALOG_PIN(p)    ((p) >= 11 && (p) < TOTAL_PINS)
+#define BRD_IS_SERVO_PIN(p)     ((p) >= 5 && (p) <= 10)
+#define BRD_PIN_TO_ANALOG(p)    (p) - 11
 
 // NOTE: We can probably pre-attach all 4 servo ports
 
@@ -74,6 +77,9 @@ unsigned int samplingInterval = 19; // how often to run the main loop (in ms)
 Servo servos[BRD_MAX_SERVOS];
 byte detachedServoCount = 0;
 byte servoCount = 0;
+
+// motors
+AStar32U4Motors motors;
 
 boolean isResetting = false;
 
@@ -167,8 +173,17 @@ void analogWriteCallback(byte pin, int value) {
     if (pin < BRD_NUM_SERVO_PINS) {
         // Special case for pin 0 and 1, which map to motors
         if (pin < 2) {
-            // TODO motor control here
+            // Take in an angle (0 to 180) and map it to appropriate motor outputs
+            // We will end up losing some resolution
+            // Map 0 - 180 to -400 - 400 (which is what the A-Star motors take in)
+            value = map(value, 0, 180, -400, 400);
 
+            if (pin == 0) {
+                motors.setM1Speed(value);
+            }
+            else {
+                motors.setM2Speed(value);
+            }
         }
         else {
             // Write the angle to the servo
@@ -222,7 +237,9 @@ void reportDigitalCallback(byte port, int value) {
 void systemResetCallback() {
     isResetting = true;
 
-    // TODO: Shutdown motor controllers
+    // Stop motors
+    motors.setM1Speed(0);
+    motors.setM2Speed(0);
 
     reportPins = 0;
     previousDigitalPins = 0;
