@@ -1,6 +1,10 @@
 # BB FRC Workshop Controller - Pololu A-Star 32u4 Robot Controller
 This firmware is designed for the [Pololu A-Star 32u4 Robot Controller](https://www.pololu.com/product/3117). It contains custom mappings for PWM ports, Digital I/O ports and Analog Input ports to support the built-in functionality of the board.
 
+## Required Arduino Libraries
+- [ServoT3](https://github.com/bb-frc-workshops/controller-firmware/tree/master/libs/ServoT3) - Modified build of Servo library that uses Timer3
+- [AStar32U4 Arduino Library](https://www.pololu.com/docs/0J61/7) - (Install via instructions in link) Library that manages onboard hardware of the A-Star 32u4 Robot Controller
+
 ## Port Mapping
 ![Pololu A-Star 32u4 Robot Controller Pinout](https://a.pololu-files.com/picture/0J6675.1200.jpg?41fd5790d0536c3a42cf478ba6d4edbf)
 The diagram above shows the pin mapping on the Pololu A-Star Robot Controller. This firmware uses a subset of those pins. The table below shows the pins that are in use and their virtual functions as defined in the firmware.
