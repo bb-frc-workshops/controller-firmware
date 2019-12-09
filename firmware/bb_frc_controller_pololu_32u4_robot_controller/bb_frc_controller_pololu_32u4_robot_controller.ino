@@ -47,6 +47,8 @@ Arduino Pin | Virtual Pin | Type
 #define BRD_NUM_SERVO_PINS      6 // 4 actual, 2 virtual pins that pipe to M1/M2
 #define BRD_NUM_ANALOG_PINS     6
 
+#define HEARTBEAT_CHECK_TIME    500
+
 // Map from virtual pin numbers to actual pins
 byte digitalPinMap[BRD_NUM_DIGITAL_PINS] = {4, 5, 6, 7, 8}; // TODO to test the OUTPUT capability, assign each index in turn to pin 13
 byte servoPinMap[BRD_NUM_SERVO_PINS] = {127, 127, 14, 15, 16, 17};
@@ -82,6 +84,12 @@ byte servoCount = 0;
 AStar32U4Motors motors;
 
 boolean isResetting = false;
+
+// If this is set to true, we require a heartbeat message every 500ms
+boolean heartbeatEnabled = false;
+boolean heartbeatReceived = false;
+unsigned long currentHeartbeatMillis;
+unsigned long previousHeartbeatMillis;
 
 void outputDigitalPort(byte portValue, byte forceSend) {
     // Pins not configured as INPUT are cleared to zeros
@@ -262,6 +270,8 @@ void systemResetCallback() {
     detachedServoCount = 0;
     servoCount = 0;
 
+    heartbeatEnabled = false;
+
     isResetting = false;
 }
 
@@ -343,6 +353,24 @@ void sysexCallback(byte command, byte argc, byte *argv) {
     }
 }
 
+void stringCallback (char* data) {
+    if (strcmp(data, "hbon") == 0) {
+        heartbeatEnabled = true;
+
+        // Reset the time trackers
+        currentHeartbeatMillis = previousHeartbeatMillis = millis();
+        return;
+    }
+    else if (strcmp(data, "hboff") == 0) {
+        heartbeatEnabled = false;
+        return;
+    }
+
+    if (strcmp(data, "hb") == 0) {
+        heartbeatReceived = true;
+    }
+}
+
 void setup() {
     // Controller Firmware Version
     Firmata.setFirmwareNameAndVersion("bbfrc-astar-32u4-rc", FIRMWARE_VER_MAJOR, FIRMWARE_VER_MINOR);
@@ -372,6 +400,7 @@ void setup() {
     Firmata.attach(SET_DIGITAL_PIN_VALUE, setPinValueCallback);
     Firmata.attach(SYSTEM_RESET, systemResetCallback);
     Firmata.attach(START_SYSEX, sysexCallback);
+    Firmata.attach(STRING_DATA, stringCallback);
 
     // Start!
     Firmata.begin(57600);
@@ -381,6 +410,8 @@ void setup() {
 
     // Reset the system to default configuration
     systemResetCallback();
+
+    currentHeartbeatMillis = previousHeartbeatMillis = millis();
 }
 
 void loop() {
@@ -404,6 +435,24 @@ void loop() {
                     Firmata.sendAnalog(analogPin, analogRead(analogPin));
                 }
             }
+        }
+    }
+
+    // If we have the heartbeat check enabled
+    if (heartbeatEnabled) {
+        currentHeartbeatMillis = millis();
+        if (currentHeartbeatMillis - previousHeartbeatMillis > HEARTBEAT_CHECK_TIME) {
+            previousHeartbeatMillis += HEARTBEAT_CHECK_TIME;
+
+            if (!heartbeatReceived) {
+                // Heartbeat not received, shutdown the motors
+                motors.setM1Speed(0);
+                motors.setM2Speed(0);
+            }
+
+            // Flip the flag in preparation to receive a new signal
+            heartbeatReceived = false;
+
         }
     }
 }
